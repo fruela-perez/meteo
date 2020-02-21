@@ -1,15 +1,53 @@
 <?php
+    // --------------------------------- //
+    //   Fruela Pérez fécit, A.D. 2020   //
+    // --------------------------------- //
+
     require ( __DIR__  . "/settings.php" );
 
-    $ret = CallAPI ( "POST", $url, $param );
+    $reqURL   = $url . $secret . "/" . $latitud . "," . $longitud . "?units=ca&lang=es";
+    $datos    = json_decode ( APIcall ( $reqURL ) );
 
-    $datos = json_decode ( $ret );
+    $actual   = $datos->currently;
 
-    foreach ( $datos->main as $key => $value ) 
+    // echo publicIP () . PHP_EOL;
+
+    switch ( $argv [ 1 ] ) 
     {
-        echo formatItem ( $key, $value ) . PHP_EOL; 
+        case 'minimo':
+            echo formatItem ( "temperature", $actual->temperature ) . ", ";
+            echo formatItem ( "summary", $actual->summary );
+            echo PHP_EOL;
+
+            break;
+
+        case 'corto':
+            echo formatItem ( "temperature", $actual->temperature ) . " * ";
+            echo formatItem ( "summary",     $actual->summary )     . " * ";
+            echo formatItem ( "pressure",    $actual->pressure )    . " * ";
+            echo formatItem ( "windSpeed",   $actual->windBearing ) . " ";
+            echo formatItem ( "windBearing", $actual->windBearing ) . " * ";
+            echo formatItem ( "humidity",    $actual->humidity );
+            
+            echo PHP_EOL;
+
+            break;
+
+        case 'resumen':
+            echo formatItem ( "temperature",         $actual->temperature ) . PHP_EOL;
+            echo formatItem ( "summary",             $actual->summary )     . PHP_EOL;
+            echo formatItem ( "apparentTemperature", $actual->temperature ) . PHP_EOL;
+            echo formatItem ( "pressure",            $actual->pressure )    . PHP_EOL;
+            echo formatItem ( "windSpeed",           $actual->windBearing ) . " ";
+            echo formatItem ( "windBearing",         $actual->windBearing ) . PHP_EOL;
+            echo formatItem ( "humidity",            $actual->humidity )    . PHP_EOL;
+
+            break;
+
+        default:
+            echo "Uso: " . $argv [ 0 ] . " minimo | corto | resumen" . PHP_EOL;
+            break;
     }
-    echo PHP_EOL;
 
     function formatItem ( $clave, $valor )
     {
@@ -17,33 +55,41 @@
 
         switch ( $clave ) 
         {
-            case 'temp':
+            case 'temperature':
 
-                $retorno = "Temperatura: " . negrita ( round ( $valor ) . "°C" );
+                $retorno = round ( $valor ) . "°C";
                 break;
 
-            case 'feels_like':
-                $retorno = "Sensación térmica: " . negrita ( round ( $valor ) . "°C" );
+            case 'apparentTemperature':
+                $retorno = "Sensación térmica: " . round ( $valor ) . "°C";
                 break;
 
-            case 'temp_min':
-                $retorno = "Mínima: " . negrita ( round ( $valor ) . "°C" );
-                break;
-
-            case 'temp_max':
-                $retorno = "Máxima: " . negrita ( round ( $valor ) . "°C" );
+            case 'precipProbability':
+                $retorno = "Probabilidad de precipitaciones: " . round ( 100 * $valor ) . "%";
                 break;
 
             case 'pressure':
-                $retorno = "Presión: " . $valor . " hPa (" . hPa2mmHg ( $valor ) . " mmHg)";
+                $retorno = "Presión: " . round ( $valor ) . " hPa (" . hPa2mmHg ( $valor ) . " mmHg)";
                 break;
 
             case 'humidity':
-                $retorno = "Humedad relativa: " . negrita (  $valor . "%" );
+                $retorno = "Humedad relativa: " . round ( 100 * $valor ) . "%";
+                break;
+
+            case 'windSpeed':
+                $retorno = "Viento: " .  $valor . " km/h";
+                break;
+
+            case 'windBearing':
+                $retorno = rumbo ( $valor );
+                break;
+
+            case 'summary':
+                $retorno = $valor;
                 break;
 
             default:
-                $retorno = $clave . ": " . negrita ( $valor );
+                $retorno = "";
                 break;
         }
 
@@ -57,44 +103,77 @@
         return round ( $hpa * 0.75006375541921 );
     }
 
-    function negrita ( $cadena )
+    function rumbo ( $grados ) 
     {
-        return "${bold}" . $cadena . "${normal}";
+        $winddir [] = "N";
+        $winddir [] = "NNE";
+        $winddir [] = "NE";
+        $winddir [] = "ENE";
+        $winddir [] = "E";
+        $winddir [] = "ESE";
+        $winddir [] = "SE";
+        $winddir [] = "SSE";
+        $winddir [] = "S";
+        $winddir [] = "SSO";
+        $winddir [] = "SO";
+        $winddir [] = "OSO";
+        $winddir [] = "O";
+        $winddir [] = "ONO";
+        $winddir [] = "NO";
+        $winddir [] = "NNO";
+        $winddir [] = "N";
+        
+        return $winddir [round ( $grados*16/360 ) ];
     }
 
-    function CallAPI ($method, $url, $data = false)
+    function APIcall ( $url )
     {
-        $curl = curl_init();
+        // API Doc:
+        // https://darksky.net/dev/docs        
+        
+        $httpHeaders = array 
+        ( 
+            "accept: application/json", 
+            "cache-control: no-cache", 
+            "content-type: application/json" 
+        );
 
-        switch ($method)
+        $curl = curl_init ();
+
+        curl_setopt_array
+        (
+            $curl, 
+            array
+            (
+                CURLOPT_URL            => $url,
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_ENCODING       => "",
+                CURLOPT_MAXREDIRS      => 10,
+                CURLOPT_TIMEOUT        => 30,
+                CURLOPT_HTTP_VERSION   => CURL_HTTP_VERSION_1_1,
+                CURLOPT_CUSTOMREQUEST  => "GET",
+                CURLOPT_HTTPHEADER     => $httpHeaders
+            )
+        );
+
+        $response = curl_exec  ( $curl );
+        $err      = curl_error ( $curl );
+
+        curl_close ( $curl );
+
+        if ( $err ) 
         {
-            case "POST":
-                curl_setopt($curl, CURLOPT_POST, 1);
-
-                if ($data)
-                    curl_setopt($curl, CURLOPT_POSTFIELDS, $data);
-                break;
-
-            case "PUT":
-                curl_setopt($curl, CURLOPT_PUT, 1);
-                break;
-
-            default:
-                if ($data)
-                    $url = sprintf("%s?%s", $url, http_build_query($data));
+            die ( "cURL Error #:" . $err . PHP_EOL );
+        } 
+        else 
+        {
+            return $response;
         }
-
-        // Optional Authentication:
-        // curl_setopt($curl, CURLOPT_HTTPAUTH, CURLAUTH_BASIC);
-        // curl_setopt($curl, CURLOPT_USERPWD, "username:password");
-
-        curl_setopt($curl, CURLOPT_URL, $url);
-        curl_setopt($curl, CURLOPT_RETURNTRANSFER, 1);
-
-        $result = curl_exec($curl);
-
-        curl_close($curl);
-
-        return $result;
     }
+
+    function publicIP ()
+    {
+        return file_get_contents ( 'https://bot.whatismyipaddress.com/' );
+    }
+
 ?>
