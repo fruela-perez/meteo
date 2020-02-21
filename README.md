@@ -17,7 +17,7 @@ $ php weather.php minimo
 
 ### Corto
 ```
-$ php weather.php corto`
+$ php weather.php corto
 
 2°C * Despejado * Presión: 1031 hPa (773 mmHg) * Viento: 41 km/h NE * Humedad relativa: 90%
 ```
